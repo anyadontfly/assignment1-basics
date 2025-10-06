@@ -6,13 +6,8 @@ from torch import Tensor
 
 from jaxtyping import Bool
 
+from .utils import softmax, silu
 
-def softmax(x: Tensor, dim: int) -> Tensor:
-    assert len(x.shape) > dim, (
-        f"dimension {dim} out of range of input dimension {x.shape}"
-    )
-    normalized_x = x - torch.max(x, dim=dim, keepdim=True)[0]
-    return torch.exp(normalized_x) / torch.sum(torch.exp(normalized_x), dim=dim, keepdim=True)
 
 def scaled_dot_product_attention(
     q: Tensor,
@@ -183,10 +178,9 @@ class SwiGLU(nn.Module):
             nn.init.trunc_normal_(w, mean=0, std=std, a=-3*std, b=3*std)
 
     def forward(self, x: Tensor) -> Tensor:
-        w1_prod = torch.matmul(x, self.w1_weight.t())
-        silu_w1_prod = w1_prod * torch.sigmoid(w1_prod)
-        w3_prod = torch.matmul(x, self.w3_weight.t()) * silu_w1_prod
-        return torch.matmul(w3_prod, self.w2_weight.t())
+        xw1 = torch.matmul(x, self.w1_weight.t())
+        xw3 = torch.matmul(x, self.w3_weight.t()) * silu(xw1)
+        return torch.matmul(xw3, self.w2_weight.t())
 
 
 class RotaryPositionalEmbedding(nn.Module):

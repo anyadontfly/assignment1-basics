@@ -10,18 +10,25 @@ from jaxtyping import Bool, Float, Int
 from torch import Tensor
 
 from cse599o_basics.tokenizer import BPETokenizer
+from cse599o_basics.utils import softmax, silu
 from cse599o_basics.model import (
     Linear,
     Embedding,
     RMSNorm,
     SwiGLU,
     RotaryPositionalEmbedding,
-    softmax,
     scaled_dot_product_attention,
     MultiheadAttention,
     TransformerBlock,
     Transformer,
 )
+from cse599o_basics.training import (
+    cross_entropy_loss,
+    AdamW,
+    learning_rate_schedule,
+    gradient_clipping,
+)
+
 
 def run_linear(
     d_in: int,
@@ -499,7 +506,7 @@ def run_silu(in_features: Float[Tensor, " ..."]) -> Float[Tensor, " ..."]:
         Float[Tensor,"..."]: of with the same shape as `in_features` with the output of applying
         SiLU to each element.
     """
-    raise NotImplementedError
+    return silu(in_features)
 
 
 def run_get_batch(
@@ -556,7 +563,7 @@ def run_cross_entropy(
     Returns:
         Float[Tensor, ""]: The average cross-entropy loss across examples.
     """
-    raise NotImplementedError
+    return cross_entropy_loss(inputs, targets)
 
 
 def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm: float) -> None:
@@ -568,14 +575,14 @@ def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm:
 
     The gradients of the parameters (parameter.grad) should be modified in-place.
     """
-    raise NotImplementedError
+    return gradient_clipping(parameters, max_l2_norm)
 
 
 def get_adamw_cls() -> Any:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
-    raise NotImplementedError
+    return AdamW
 
 
 def run_get_lr_cosine_schedule(
@@ -603,7 +610,7 @@ def run_get_lr_cosine_schedule(
     Returns:
         Learning rate at the given iteration under the specified schedule.
     """
-    raise NotImplementedError
+    return learning_rate_schedule(it, max_learning_rate, min_learning_rate, warmup_iters, cosine_cycle_iters)
 
 
 def run_save_checkpoint(
