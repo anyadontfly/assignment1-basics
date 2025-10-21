@@ -9,6 +9,12 @@ __pycache__/
 # Data files
 data/
 
+# Log files
+log/
+
+# Checkpoints
+checkpoints/
+
 # Distribution / packaging
 .Python
 build/

@@ -10,7 +10,7 @@ from jaxtyping import Bool, Float, Int
 from torch import Tensor
 
 from cse599o_basics.tokenizer import BPETokenizer
-from cse599o_basics.utils import softmax, silu
+from cse599o_basics.calc import softmax, silu
 from cse599o_basics.model import (
     Linear,
     Embedding,
@@ -22,7 +22,10 @@ from cse599o_basics.model import (
     TransformerBlock,
     Transformer,
 )
-from cse599o_basics.training import (
+from cse599o_basics.utils import (
+    data_loading,
+    save_checkpoint,
+    load_checkpoint,
     cross_entropy_loss,
     AdamW,
     learning_rate_schedule,
@@ -529,7 +532,7 @@ def run_get_batch(
         is the sampled input sequences, and the second tuple item is the corresponding
         language modeling labels.
     """
-    raise NotImplementedError
+    return data_loading(dataset, batch_size, context_length, device)
 
 
 def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, " ..."]:
@@ -629,7 +632,7 @@ def run_save_checkpoint(
             we've completed.
         out (str | os.PathLike | BinaryIO | IO[bytes]): Path or file-like object to serialize the model, optimizer, and iteration to.
     """
-    raise NotImplementedError
+    save_checkpoint(model, optimizer, iteration, out)
 
 
 def run_load_checkpoint(
@@ -650,7 +653,7 @@ def run_load_checkpoint(
     Returns:
         int: the previously-serialized number of iterations.
     """
-    raise NotImplementedError
+    return load_checkpoint(src, model, optimizer)
 
 
 def get_tokenizer(

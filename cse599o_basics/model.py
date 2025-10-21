@@ -6,7 +6,7 @@ from torch import Tensor
 
 from jaxtyping import Bool
 
-from .utils import softmax, silu
+from .calc import softmax, silu
 
 
 def scaled_dot_product_attention(
@@ -58,11 +58,11 @@ class Linear(nn.Module):
 
 class Embedding(nn.Module):
     def __init__(
-            self,
-            num_embeddings: int,
-            embedding_dim: int,
-            device=None,
-            dtype=None,
+        self,
+        num_embeddings: int,
+        embedding_dim: int,
+        device=None,
+        dtype=None,
     ) -> None:
         r"""
         Construct an embedding module.
@@ -87,7 +87,7 @@ class Embedding(nn.Module):
 
     def forward(self, token_ids: Tensor)-> Tensor:
         bsz, sqlen = token_ids.shape
-        out = torch.empty(bsz, sqlen, self.embedding_dim)
+        out = torch.empty(bsz, sqlen, self.embedding_dim, device=token_ids.device)
         for i in range(bsz):
             for j in range(sqlen):
                 out[i, j] = self.weight[token_ids[i, j]]
@@ -250,7 +250,7 @@ class MultiheadAttention(nn.Module):
         num_heads: int,
         device=None,
         dtype=None,
-    ):
+    ) -> None:
         r"""
         Construct the multi-head self-attention.
 
@@ -396,7 +396,7 @@ class Transformer(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         _, seqlen = x.shape
-        token_positions = torch.tensor([i for i in range(seqlen)])
+        token_positions = torch.tensor([i for i in range(seqlen)]).to(x.device)
 
         h = self.embedding(x)
         for layer in self.layers:

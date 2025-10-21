@@ -114,3 +114,9 @@ class BPETokenizer:
             A new BPETokenizer instance
         """
         return cls(vocab=vocab, merges=merges, special_tokens=special_tokens)
+
+
+if __name__ == "__main__":
+    enc = BPETokenizer(None, None, ["<|endoftext|>"])
+    print(enc.tokenizer.n_vocab)
+    print(enc.encode("Tom knew that tomorrow would be another happy morning.<|endoftext|>"))
