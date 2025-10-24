@@ -25,7 +25,7 @@ def data_loading(
     
     if len(x) - context_length < batch_size + 1:
         raise ValueError(
-            f"x of length {len(x)} does not hev enough tokens "
+            f"x of length {len(x)} does not have enough tokens "
             f"to form input/target pairs of shape {(batch_size, context_length)}"
         )
     
@@ -54,22 +54,21 @@ def save_checkpoint(
         "iteration": iteration,
     }
     torch.save(checkpoint, out)
-    checkpoint = torch.load(out)
-    print(f"Saved iter: {checkpoint['iteration']}")
 
 def load_checkpoint(
     src: str | os.PathLike | typing.BinaryIO | typing.IO[bytes],
     model: nn.Module,
-    optimizer: optim.Optimizer,
+    optimizer: optim.Optimizer | None = None,
 ) -> int:
     """Load a checkpoint from `src` and recover model and optimizer states."""
     # Use torch.load(src) to recover saved state
     # Call load_state_dict on both model and optimizer
     # Return the saved iteration number
-    print(f"load file: {src}")
+    print(f"Loading checkpoint file: {src}")
     checkpoint = torch.load(src)
     model.load_state_dict(checkpoint['model_state'])
-    optimizer.load_state_dict(checkpoint['optimizer_state'])
+    if optimizer is not None:
+        optimizer.load_state_dict(checkpoint['optimizer_state'])
     return checkpoint['iteration']
 
 def cross_entropy_loss(inputs: Tensor, targets: Tensor) -> Tensor:

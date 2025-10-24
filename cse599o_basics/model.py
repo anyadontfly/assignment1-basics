@@ -86,12 +86,7 @@ class Embedding(nn.Module):
         nn.init.trunc_normal_(self.weight, mean=0, std=1, a=-3, b=3)
 
     def forward(self, token_ids: Tensor)-> Tensor:
-        bsz, sqlen = token_ids.shape
-        out = torch.empty(bsz, sqlen, self.embedding_dim, device=token_ids.device)
-        for i in range(bsz):
-            for j in range(sqlen):
-                out[i, j] = self.weight[token_ids[i, j]]
-        return out
+        return self.weight[token_ids.long()]
 
 
 class RMSNorm(nn.Module):

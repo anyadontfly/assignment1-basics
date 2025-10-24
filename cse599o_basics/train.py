@@ -2,6 +2,7 @@ import os
 import argparse
 import logging
 import sys
+import csv
 
 import numpy as np
 import torch
@@ -71,13 +72,31 @@ def evaluate_per_token_loss(
         for _ in range(num_batches):
             inputs, targets = data_loading(valid_data, batch_size, context_length, device)
             logits = model(inputs)
-            loss = cross_entropy_loss(logits.view(-1, vocab_size), targets.view(-1))  # mean over tokens
+            loss = cross_entropy_loss(logits.view(-1, vocab_size), targets.view(-1))
             total_loss += loss.item() * batch_size * context_length
             total_tokens += batch_size * context_length
 
-    avg_loss = total_loss / total_tokens  # per-token loss across validation set
+    avg_loss = total_loss / total_tokens
     model.train()
     return avg_loss
+
+def initialize_loss_csv(loss_log_path):
+    if not loss_log_path:
+        return None, None
+    
+    os.makedirs(os.path.dirname(loss_log_path), exist_ok=True)
+    
+    file_exists = os.path.exists(loss_log_path)
+    loss_csv_file = open(loss_log_path, 'a', newline='')
+    loss_csv_writer = csv.writer(loss_csv_file)
+    
+    if not file_exists:
+        loss_csv_writer.writerow(['step', 'train_loss', 'valid_loss', 'learning_rate'])
+        loss_csv_file.flush()
+    
+    logger.info(f"Logging losses to {loss_log_path}")
+    
+    return loss_csv_file, loss_csv_writer
 
 def main(args):
     dtype_str   = args.dtype
@@ -108,6 +127,7 @@ def main(args):
     checkpoint_load_path        = args.checkpoint_load_path
     checkpoint_iters            = args.checkpoint_iters
     checkpoint_save_path        = args.checkpoint_save_path
+    loss_log_path               = args.loss_log_path
 
     tokenizer = BPETokenizer(None, None, ["<|endoftext|>"])
     train_data = load_or_encode_data(train_data_path, tokenizer)
@@ -151,10 +171,12 @@ def main(args):
             raise ValueError(
                 f"Total training iterations ({iters}) must be greater than the checkpoint's current step ({step})"
             )
-        step += 1  # start from the next step
+        step += 1
 
     logger.info(f"Starting training at step {step}/{iters} on device={device}")
     model.train()
+
+    loss_csv_file, loss_csv_writer = initialize_loss_csv(loss_log_path)
 
     while step <= iters:
         if use_learning_rate_schedule:
@@ -171,19 +193,27 @@ def main(args):
         if use_grad_clip:
             gradient_clipping(model.parameters(), max_norm_grad_clip, eps=eps_grad_clip)
         optim.step()
+        current_lr = optim.param_groups[0]["lr"]
+        if use_learning_rate_schedule:
+            logger.info(f"Step {step}/{iters} | Loss: {loss.item():.4f} | Lr scheduled: {lr_t:.6f}")
+        else:
+            logger.info(f"Step {step}/{iters} | Loss: {loss.item():.4f}")
 
-        logger.info(f"Step {step}/{iters} | Loss: {loss.item():.4f}")
-
+        valid_loss = None
         if (step % 10) == 0:
             valid_loss = evaluate_per_token_loss(
                 model,
                 valid_data,
-                batch_size,
+                batch_size * 2,
                 context_length,
                 vocab_size,
                 device,
             )
             logger.info(f"Step {step} validation loss: {valid_loss:.4f}")
+        
+        if loss_csv_writer:
+            loss_csv_writer.writerow([step, f"{loss.item():.6f}", f"{valid_loss:.6f}" if valid_loss else "", f"{current_lr:.8f}"])
+            loss_csv_file.flush()
 
         if (step % checkpoint_iters) == 0:
             if checkpoint_save_path is not None and checkpoint_iters is not None:
@@ -192,9 +222,9 @@ def main(args):
 
         step += 1
 
-    if checkpoint_save_path is not None:
-        logger.info(f"Final save at step {step}")
-        save_checkpoint(model, optim, step, checkpoint_save_path)
+    if loss_csv_file:
+        loss_csv_file.close()
+        logger.info(f"Loss log saved to {loss_log_path}")
     
     logger.info("Training complete")
 
@@ -208,6 +238,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint-save-path", type=str, default=None, help="Optional path to save model checkpoints")
     parser.add_argument("--checkpoint-iters", type=int, default=None, help="Number of iterations between saving checkpoints (required if --checkpoint-save-path is set)")
     parser.add_argument("--checkpoint-load-path", type=str, default=None, help="Optional path to load a checkpoint before training resumes")
+    parser.add_argument("--loss-log-path", type=str, default=None, help="Optional path to save training and validation losses as CSV for plotting learning curves")
     
     parser.add_argument("--dtype", type=str, default="float32", choices=["float32", "bfloat16", "float16"], help="Model data type. One of: float32, bfloat16, or float16 (default: float32)")
     parser.add_argument("--dim", type=int, required=True, help="Model hidden dimension size")
