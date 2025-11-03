@@ -15,6 +15,12 @@ log/
 # Checkpoints
 checkpoints/
 
+# Nsys reports
+nsys-rep/
+
+# Writeups
+*.md
+
 # Distribution / packaging
 .Python
 build/

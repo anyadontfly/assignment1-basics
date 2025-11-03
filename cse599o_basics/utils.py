@@ -79,7 +79,7 @@ def cross_entropy_loss(inputs: Tensor, targets: Tensor) -> Tensor:
 
     inputs_max = torch.max(inputs, dim=-1, keepdim=True).values
     log_sum_exp = inputs_max + torch.log(torch.sum(torch.exp(inputs - inputs_max), dim=-1, keepdim=True))
-    target_inputs = inputs[torch.arange(inputs.size(0)), targets]
+    target_inputs = inputs[torch.arange(inputs.size(0), device=inputs.device), targets]
     return (log_sum_exp - target_inputs).mean()
 
 def learning_rate_schedule(t, lr_max, lr_min, t_w, t_c) -> float:

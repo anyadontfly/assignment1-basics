@@ -55,7 +55,6 @@ def main(args):
     csv_path = args.csv
     output_path = args.output
     title = args.title
-    show = not args.no_show
     
     if not os.path.exists(csv_path):
         raise FileNotFoundError(f"CSV file not found: {csv_path}")
@@ -70,7 +69,7 @@ def main(args):
     
     # Check if we have validation loss and learning rate
     has_valid_loss = 'valid_loss' in data
-    has_learning_rate = 'learning_rate' in data
+    has_learning_rate = 'learning_rate' in data and args.plot_lr
     
     # Filter out rows with valid loss (not None)
     if has_valid_loss:
@@ -130,12 +129,6 @@ def main(args):
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         print(f"Plot saved to: {output_path}")
-    
-    # Show the plot if requested
-    if show:
-        plt.show()
-    else:
-        plt.close()
 
 
 if __name__ == "__main__":
@@ -174,9 +167,9 @@ Examples:
         help='Custom title for the plot'
     )
     parser.add_argument(
-        '--no-show',
+        '--plot-lr',
         action='store_true',
-        help='Do not display the plot interactively (useful for saving only)'
+        help='Plot learning rate curve (if available in CSV)'
     )
     
     args = parser.parse_args()

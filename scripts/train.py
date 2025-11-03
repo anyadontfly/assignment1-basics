@@ -7,9 +7,9 @@ import csv
 import numpy as np
 import torch
 
-from .tokenizer import BPETokenizer
-from .model import Transformer
-from .utils import (
+from cse599o_basics.tokenizer import BPETokenizer
+from cse599o_basics.model import Transformer
+from cse599o_basics.utils import (
     data_loading,
     save_checkpoint,
     load_checkpoint,
@@ -62,7 +62,7 @@ def evaluate_per_token_loss(
     context_length,
     vocab_size,
     device,
-    num_batches=10
+    num_batches=100
 ):
     model.eval()
     total_loss = 0.0
@@ -200,7 +200,7 @@ def main(args):
             logger.info(f"Step {step}/{iters} | Loss: {loss.item():.4f}")
 
         valid_loss = None
-        if (step % 10) == 0:
+        if (step % 100) == 0:
             valid_loss = evaluate_per_token_loss(
                 model,
                 valid_data,

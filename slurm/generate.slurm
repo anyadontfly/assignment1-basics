@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=train
+#SBATCH --job-name=generate
 #SBATCH --account=puyuan
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
@@ -9,8 +9,8 @@
 #SBATCH --time=02:00:00
 #SBATCH --chdir=/homes/iws/puyuan/cse599o/assignment1-basics
 #SBATCH --export=ALL
-#SBATCH --output=log/puyuan-train-slurm-%j.out
-#SBATCH --error=log/puyuan-train-slurm-%j.err
+#SBATCH --output=log/puyuan-generate-slurm-%j.out
+#SBATCH --error=log/puyuan-generate-slurm-%j.err
 
 set -euo pipefail
 
@@ -18,8 +18,8 @@ echo "[INFO] Job started on $(hostname) at $(date)"
 
 mkdir -p checkpoints
 
-srun python -u -m cse599o_basics.generate \
-  --checkpoint-load-path checkpoints/checkpoint_lr_schedule_1.pt \
+srun python -u scripts/generate.py \
+  --checkpoint-load-path checkpoints/checkpoint.pt \
   --prompt-path data/prompt_text.txt \
   --dim 512 \
   --n-layers 4 \

@@ -10,6 +10,10 @@ rm "$output_file" || true
 
 # Compress all files in the current directory into a single zip file
 zip -r "$output_file" . \
+    -x 'checkpoint/*' \
+    -x 'data/*' \
+    -x 'nsys-rep/*' \
+    -x 'log/*' \
     -x '*egg-info*' \
     -x '*mypy_cache*' \
     -x '*pytest_cache*' \

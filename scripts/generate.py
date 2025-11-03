@@ -5,10 +5,10 @@ import sys
 
 import torch
 
-from .tokenizer import BPETokenizer
-from .model import Transformer
-from .utils import load_checkpoint
-from .calc import softmax
+from cse599o_basics.tokenizer import BPETokenizer
+from cse599o_basics.model import Transformer
+from cse599o_basics.utils import load_checkpoint
+from cse599o_basics.calc import softmax
 
 
 logger = logging.getLogger(__name__)

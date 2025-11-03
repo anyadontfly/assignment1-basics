@@ -18,14 +18,14 @@ echo "[INFO] Job started on $(hostname) at $(date)"
 
 mkdir -p checkpoints
 
-srun python -u -m cse599o_basics.train \
+srun python -u scripts/train.py \
   --batch-size 32 \
   --train-data-path data/TinyStoriesV2-GPT4-train.bin \
   --valid-data-path data/TinyStoriesV2-GPT4-valid.bin \
-  --checkpoint-load-path checkpoints/checkpoint_lr_schedule.pt \
-  --checkpoint-iters 50 \
-  --checkpoint-save-path checkpoints/checkpoint_lr_schedule.pt \
-  --loss-log-path log/loss_lr_schedule.csv \
+  --checkpoint-load-path checkpoints/checkpoint.pt \
+  --checkpoint-iters 500 \
+  --checkpoint-save-path checkpoints/checkpoint.pt \
+  --loss-log-path log/loss.csv \
   --dim 512 \
   --n-layers 4 \
   --n-heads 16 \

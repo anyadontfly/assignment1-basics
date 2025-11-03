@@ -1,8 +1,10 @@
 import math
+from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
 from torch import Tensor
+import torch.cuda.nvtx as nvtx
 
 from jaxtyping import Bool
 
@@ -20,6 +22,24 @@ def scaled_dot_product_attention(
     if mask is not None:
         qk = qk.masked_fill(~mask, float("-inf"))
     return torch.matmul(softmax(qk, -1), v)
+
+@nvtx.range("scaled dot product attention")
+def annotated_scaled_dot_product_attention(
+    q: Tensor,
+    k: Tensor,
+    v: Tensor,
+    mask: Bool[Tensor, " ... queries keys"] | None = None,
+) -> Tensor:
+    d_k = q.shape[-1]
+    with nvtx.range("computing attention scores"):
+        qk = torch.matmul(q, k.transpose(-1, -2)) / math.sqrt(d_k)
+    if mask is not None:
+        qk = qk.masked_fill(~mask, float("-inf"))
+    with nvtx.range("computing softmax"):
+        h = softmax(qk, -1)
+    with nvtx.range("final matmul"):
+        out = torch.matmul(h, v)
+    return out
 
 
 class Linear(nn.Module):
@@ -226,16 +246,17 @@ class RotaryPositionalEmbedding(nn.Module):
             - Use token_positions to slice (precomputed) cos/sin tensors
               along the sequence dimension.
         """
-        out = torch.empty_like(x).to(x.device)
-
         cos = self.cos[token_positions]
         sin = self.sin[token_positions]
         x_even = x[..., 0::2]
         x_odd  = x[..., 1::2]
 
-        out[..., 0::2] = x_even * cos - x_odd * sin
-        out[..., 1::2] = x_even * sin + x_odd * cos
-        return out
+        out_even = x_even * cos - x_odd * sin
+        out_odd = x_even * sin + x_odd * cos
+        
+        x[..., 0::2] = out_even
+        x[..., 1::2] = out_odd
+        return x
 
 
 class MultiheadAttention(nn.Module):
@@ -262,19 +283,19 @@ class MultiheadAttention(nn.Module):
         self.q_proj_weight = nn.Parameter(
             torch.empty(d_model, d_model, dtype=dtype, device=device),
             requires_grad=True
-        )  # (num_heads * d_head, d_model)
+        )
         self.k_proj_weight = nn.Parameter(
             torch.empty(d_model, d_model, dtype=dtype, device=device),
             requires_grad=True
-        )  # (num_heads * d_head, d_model)
+        )
         self.v_proj_weight = nn.Parameter(
             torch.empty(d_model, d_model, dtype=dtype, device=device),
             requires_grad=True
-        )  # (num_heads * d_head, d_model)
+        )
         self.o_proj_weight = nn.Parameter(
             torch.empty(d_model, d_model, dtype=dtype, device=device),
             requires_grad=True
-        )  # (d_model, num_heads * d_head)
+        )
         self.reset_parameters()
     
     def reset_parameters(self) -> None:
@@ -292,15 +313,11 @@ class MultiheadAttention(nn.Module):
     ) -> Tensor:
         bsz, seqlen, _ = x.shape
 
-        mask = ~torch.triu(
-            torch.full((seqlen, seqlen), True, device=x.device), diagonal=1
-        ).view(1, 1, seqlen, seqlen)
+        mask = torch.triu(torch.ones(seqlen, seqlen, dtype=torch.bool, device=x.device), diagonal=1)
+        mask = (~mask).view(1, 1, seqlen, seqlen)
 
-        # (bsz, num_head, seqlen, d_head)
         xq = torch.matmul(x, self.q_proj_weight.t()).view(bsz, seqlen, self.num_heads, self.d_head).transpose(1, 2)
-        # (bsz, num_head, seqlen, d_head)
         xk = torch.matmul(x, self.k_proj_weight.t()).view(bsz, seqlen, self.num_heads, self.d_head).transpose(1, 2)
-        # (bsz, num_head, seqlen, d_head)
         xv = torch.matmul(x, self.v_proj_weight.t()).view(bsz, seqlen, self.num_heads, self.d_head).transpose(1, 2)
 
         if rope_layer:
@@ -308,7 +325,7 @@ class MultiheadAttention(nn.Module):
             xq = rope_layer(xq, token_positions)
             xk = rope_layer(xk, token_positions)
 
-        atten = scaled_dot_product_attention(xq, xk, xv, mask=mask)  # (bsz, num_head, seqlen, d_head)
+        atten = scaled_dot_product_attention(xq, xk, xv, mask=mask)
         return torch.matmul(atten.transpose(1, 2).contiguous().view(bsz, seqlen, self.d_model), self.o_proj_weight.t())
     
 
@@ -327,6 +344,8 @@ class TransformerBlock(nn.Module):
         self.ff_norm = RMSNorm(d_model)
         self.atten_norm = RMSNorm(d_model)
 
+        self.reset_parameters()
+
     def reset_parameters(self) -> None:
         self.ff.reset_parameters()
         self.atten.reset_parameters()
@@ -338,9 +357,26 @@ class TransformerBlock(nn.Module):
         x: Tensor,
         rope_layer: RotaryPositionalEmbedding=None,
         token_positions: Tensor=None,
+        timing_events: Tuple[List, List]=None,
     ) -> Tensor:
+        if timing_events is not None:
+            atten_start_event = torch.cuda.Event(enable_timing=True)
+            atten_end_event = torch.cuda.Event(enable_timing=True)
+            ffn_start_event = torch.cuda.Event(enable_timing=True)
+            ffn_end_event = torch.cuda.Event(enable_timing=True)
+            atten_start_event.record()
         x = x + self.atten(self.atten_norm(x), rope_layer=rope_layer, token_positions=token_positions)
-        return x + self.ff(self.ff_norm(x))
+        if timing_events is not None:
+            atten_end_event.record()
+            ffn_start_event.record()
+        out = x + self.ff(self.ff_norm(x))
+        if timing_events is not None:
+            ffn_end_event.record()
+            timing_events[0].append(atten_start_event)
+            timing_events[0].append(atten_end_event)
+            timing_events[1].append(ffn_start_event)
+            timing_events[1].append(ffn_end_event)
+        return out
 
 
 class Transformer(nn.Module):
@@ -380,6 +416,12 @@ class Transformer(nn.Module):
         self.out = Linear(d_model, vocab_size, device=device, dtype=dtype)
         self.rope = RotaryPositionalEmbedding(rope_theta, d_model // num_heads, context_length)
 
+        self.register_buffer(
+            "token_positions", 
+            torch.arange(context_length, device=device), 
+            persistent=False
+        )
+
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
@@ -389,12 +431,12 @@ class Transformer(nn.Module):
         self.norm.reset_parameters()
         self.out.reset_parameters()
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, times: Tuple[List, List]=None) -> Tensor:
         _, seqlen = x.shape
-        token_positions = torch.tensor([i for i in range(seqlen)]).to(x.device)
+        token_positions = self.token_positions[:seqlen]
 
         h = self.embedding(x)
         for layer in self.layers:
-            h = layer(h, self.rope, token_positions)
+            h = layer(h, self.rope, token_positions, times if times is not None else None)
         h = self.norm(h)
         return self.out(h)
