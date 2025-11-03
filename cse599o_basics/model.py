@@ -341,8 +341,8 @@ class TransformerBlock(nn.Module):
         super().__init__()
         self.ff = SwiGLU(d_model, d_ff, device=device, dtype=dtype)
         self.atten = MultiheadAttention(d_model, num_heads, device=device, dtype=dtype)
-        self.ff_norm = RMSNorm(d_model)
-        self.atten_norm = RMSNorm(d_model)
+        self.ff_norm = RMSNorm(d_model, device=device, dtype=dtype)
+        self.atten_norm = RMSNorm(d_model, device=device, dtype=dtype)
 
         self.reset_parameters()
 
@@ -414,7 +414,7 @@ class Transformer(nn.Module):
         )
         self.norm = RMSNorm(d_model, device=device, dtype=dtype)
         self.out = Linear(d_model, vocab_size, device=device, dtype=dtype)
-        self.rope = RotaryPositionalEmbedding(rope_theta, d_model // num_heads, context_length)
+        self.rope = RotaryPositionalEmbedding(rope_theta, d_model // num_heads, context_length, device=device)
 
         self.register_buffer(
             "token_positions", 
